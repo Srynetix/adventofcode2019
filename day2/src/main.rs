@@ -3,14 +3,14 @@
 struct Interpreter {
     data: Vec<u32>,
     initial: Vec<u32>,
-    cursor: usize
+    cursor: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum OpCode {
     Add = 1,
     Multiply = 2,
-    Exit = 99
+    Exit = 99,
 }
 
 impl OpCode {
@@ -19,7 +19,7 @@ impl OpCode {
             1 => Some(Self::Add),
             2 => Some(Self::Multiply),
             99 => Some(Self::Exit),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -32,7 +32,7 @@ impl Interpreter {
         Self {
             initial: data.clone(),
             data,
-            cursor: 0
+            cursor: 0,
         }
     }
 
@@ -151,7 +151,7 @@ fn part2(input_txt: &str, answer: u32) {
 fn main() {
     let input_txt = include_str!("../input.txt");
     part1(&input_txt);
-    part2(&input_txt, 19690720);
+    part2(&input_txt, 19_690_720);
 }
 
 #[cfg(test)]
@@ -169,6 +169,9 @@ mod tests {
         assert_eq!(run_and_dump("1,0,0,0,99"), "2,0,0,0,99".to_owned());
         assert_eq!(run_and_dump("2,3,0,3,99"), "2,3,0,6,99".to_owned());
         assert_eq!(run_and_dump("2,4,4,5,99,0"), "2,4,4,5,99,9801".to_owned());
-        assert_eq!(run_and_dump("1,1,1,4,99,5,6,0,99"), "30,1,1,4,2,5,6,0,99".to_owned());
+        assert_eq!(
+            run_and_dump("1,1,1,4,99,5,6,0,99"),
+            "30,1,1,4,2,5,6,0,99".to_owned()
+        );
     }
 }
