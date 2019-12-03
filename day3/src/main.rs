@@ -1,28 +1,16 @@
+#![allow(dead_code)]
+
 use std::collections::HashSet;
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct Point {
     x: i32,
-    y: i32
+    y: i32,
 }
 
 impl Point {
     fn new(x: i32, y: i32) -> Self {
-        Self {
-            x,
-            y
-        }
-    }
-
-    fn cross(&self, other: Self) -> i32 {
-        self.x * other.y - self.y * other.x
-    }
-
-    fn subtract(&self, other: Self) -> Self {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y
-        }
+        Self { x, y }
     }
 
     fn from_wire(wire: &str) -> Self {
@@ -34,19 +22,16 @@ impl Point {
             'L' => Self { x: -amount, y: 0 },
             'U' => Self { x: 0, y: amount },
             'D' => Self { x: 0, y: -amount },
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    fn manhattan_distance(&self, other: Self) -> u32 {
+    fn manhattan_distance(self, other: Self) -> u32 {
         (self.x - other.x).abs() as u32 + (self.y - other.y).abs() as u32
     }
 
     const fn zero() -> Self {
-        Self {
-            x: 0,
-            y: 0
-        }
+        Self { x: 0, y: 0 }
     }
 }
 
@@ -55,7 +40,7 @@ struct Segment {
     x1: i32,
     y1: i32,
     x2: i32,
-    y2: i32
+    y2: i32,
 }
 
 impl Segment {
@@ -65,17 +50,13 @@ impl Segment {
             x1: origin.x,
             y1: origin.y,
             x2: origin.x + wire_point.x,
-            y2: origin.y + wire_point.y
+            y2: origin.y + wire_point.y,
         }
     }
 
+    #[cfg(test)]
     fn new_raw(x1: i32, y1: i32, x2: i32, y2: i32) -> Self {
-        Self {
-            x1,
-            y1,
-            x2,
-            y2
-        }
+        Self { x1, y1, x2, y2 }
     }
 
     fn from_path(path: &str) -> Vec<Self> {
@@ -99,9 +80,12 @@ impl Segment {
     }
 
     fn intersect(&self, other: Self) -> Option<Point> {
-        let d: i32 = (other.y2 - other.y1) * (self.x2 - self.x1) - (other.x2 - other.x1) * (self.y2 - self.y1);
-        let n_a: i32 = (other.x2 - other.x1) * (self.y1 - other.y1) - (other.y2 - other.y1) * (self.x1 - other.x1);
-        let n_b: i32 = (self.x2 - self.x1) * (self.y1 - other.y1) - (self.y2 - self.y1) * (self.x1 - other.x1);
+        let d: i32 = (other.y2 - other.y1) * (self.x2 - self.x1)
+            - (other.x2 - other.x1) * (self.y2 - self.y1);
+        let n_a: i32 = (other.x2 - other.x1) * (self.y1 - other.y1)
+            - (other.y2 - other.y1) * (self.x1 - other.x1);
+        let n_b: i32 =
+            (self.x2 - self.x1) * (self.y1 - other.y1) - (self.y2 - self.y1) * (self.x1 - other.x1);
         if d == 0 {
             return None;
         }
@@ -127,8 +111,7 @@ fn calculate_intersection_distance(first_path: &str, second_path: &str) -> u32 {
     let mut intersection_points = HashSet::new();
     for f_path in &first_seg_path {
         for s_path in &second_seg_path {
-            let pts = f_path.intersect(s_path.clone());
-            for p in pts {
+            if let Some(p) = f_path.intersect(s_path.clone()) {
                 if p != Point::zero() {
                     intersection_points.insert(p);
                 }
@@ -164,7 +147,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Point, Segment, calculate_intersection_distance};
+    use super::{calculate_intersection_distance, Point, Segment};
 
     #[test]
     fn test_segments() {
@@ -190,10 +173,7 @@ mod tests {
     #[test]
     fn test_intersection() {
         assert_eq!(
-            calculate_intersection_distance(
-                "R8,U5,L5,D3",
-                "U7,R6,D4,L4"
-            ),
+            calculate_intersection_distance("R8,U5,L5,D3", "U7,R6,D4,L4"),
             6
         );
         assert_eq!(
