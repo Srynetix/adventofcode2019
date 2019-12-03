@@ -1,6 +1,6 @@
-#![allow(dead_code)]
-
 use std::collections::HashSet;
+
+use aocutils::float_eq;
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct Point {
@@ -11,6 +11,11 @@ struct Point {
 impl Point {
     fn new(x: i32, y: i32) -> Self {
         Self { x, y }
+    }
+
+    fn distance(self, other: Self) -> f32 {
+        let sum: f32 = ((self.x - other.x).pow(2) + (self.y - other.y).pow(2)) as f32;
+        sum.sqrt()
     }
 
     fn from_wire(wire: &str) -> Self {
@@ -54,21 +59,17 @@ impl Segment {
         }
     }
 
+    fn steps(&self) -> u32 {
+        if self.x1 == self.x2 {
+            (self.y1 - self.y2).abs() as u32
+        } else {
+            (self.x1 - self.x2).abs() as u32
+        }
+    }
+
     #[cfg(test)]
     fn new_raw(x1: i32, y1: i32, x2: i32, y2: i32) -> Self {
         Self { x1, y1, x2, y2 }
-    }
-
-    fn from_path(path: &str) -> Vec<Self> {
-        let mut segments = vec![];
-        let mut origin = Point::new(0, 0);
-        for wire in path.split(',') {
-            let segment = Self::new(origin, wire);
-            origin = segment.target();
-            segments.push(segment);
-        }
-
-        segments
     }
 
     fn origin(&self) -> Point {
@@ -77,6 +78,17 @@ impl Segment {
 
     fn target(&self) -> Point {
         Point::new(self.x2, self.y2)
+    }
+
+    fn contains_point(&self, point: Point) -> bool {
+        let fst = self.origin().distance(point) + point.distance(self.target());
+        let snd = self.origin().distance(self.target());
+
+        float_eq(fst, snd)
+    }
+
+    fn steps_to_point(&self, point: Point) -> u32 {
+        self.origin().distance(point) as u32
     }
 
     fn intersect(&self, other: Self) -> Option<Point> {
@@ -104,31 +116,93 @@ impl Segment {
     }
 }
 
-fn calculate_intersection_distance(first_path: &str, second_path: &str) -> u32 {
-    let first_seg_path = Segment::from_path(first_path);
-    let second_seg_path = Segment::from_path(second_path);
+struct SegmentPath(Vec<Segment>);
 
-    let mut intersection_points = HashSet::new();
-    for f_path in &first_seg_path {
-        for s_path in &second_seg_path {
-            if let Some(p) = f_path.intersect(s_path.clone()) {
-                if p != Point::zero() {
-                    intersection_points.insert(p);
+impl SegmentPath {
+    fn from_path(path: &str) -> Self {
+        let mut segments = vec![];
+        let mut origin = Point::new(0, 0);
+        for wire in path.split(',') {
+            let segment = Segment::new(origin, wire);
+            origin = segment.target();
+            segments.push(segment);
+        }
+
+        Self(segments)
+    }
+
+    fn count_steps_to_point(&self, point: Point) -> u32 {
+        let mut count = 0;
+        for segment in &self.0 {
+            if segment.contains_point(point) {
+                count += segment.steps_to_point(point);
+                break;
+            } else {
+                count += segment.steps();
+            }
+        }
+
+        count
+    }
+
+    fn intersect_points(&self, other: &Self) -> HashSet<Point> {
+        let mut intersection_points = HashSet::new();
+        for f_path in &self.0 {
+            for s_path in &other.0 {
+                if let Some(p) = f_path.intersect(s_path.clone()) {
+                    if p != Point::zero() {
+                        intersection_points.insert(p);
+                    }
                 }
             }
         }
+
+        intersection_points
     }
 
-    let origin = Point::new(0, 0);
-    let mut closest_distance = u32::max_value();
-    for p in intersection_points {
-        let dist = origin.manhattan_distance(p);
-        if dist < closest_distance {
-            closest_distance = dist;
+    fn closest_intersection_distance(&self, other: &Self, origin: Point) -> u32 {
+        let intersection_points = self.intersect_points(other);
+        let mut closest_distance = u32::max_value();
+        for p in intersection_points {
+            let dist = origin.manhattan_distance(p);
+            if dist < closest_distance {
+                closest_distance = dist;
+            }
         }
+
+        closest_distance
     }
 
-    closest_distance
+    fn shortest_intersection_steps(&self, other: &Self) -> u32 {
+        let intersection_points = self.intersect_points(other);
+        let mut shortest_steps = u32::max_value();
+
+        for p in intersection_points {
+            let first_steps = self.count_steps_to_point(p);
+            let second_steps = other.count_steps_to_point(p);
+            let sum = first_steps + second_steps;
+
+            if sum < shortest_steps {
+                shortest_steps = sum;
+            }
+        }
+
+        shortest_steps
+    }
+}
+
+fn calculate_intersection_distance(first_path: &str, second_path: &str) -> u32 {
+    let first_seg_path = SegmentPath::from_path(first_path);
+    let second_seg_path = SegmentPath::from_path(second_path);
+
+    first_seg_path.closest_intersection_distance(&second_seg_path, Point::zero())
+}
+
+fn calculate_shortest_intersection_steps(first_path: &str, second_path: &str) -> u32 {
+    let first_seg_path = SegmentPath::from_path(first_path);
+    let second_seg_path = SegmentPath::from_path(second_path);
+
+    first_seg_path.shortest_intersection_steps(&second_seg_path)
 }
 
 fn part1(input_txt: &str) {
@@ -140,19 +214,35 @@ fn part1(input_txt: &str) {
     println!("Result: {}", calculate_intersection_distance(path1, path2));
 }
 
+fn part2(input_txt: &str) {
+    let paths: Vec<&str> = input_txt.split('\n').collect();
+    let path1 = paths[0];
+    let path2 = paths[1];
+
+    println!("[Part 2]");
+    println!(
+        "Result: {}",
+        calculate_shortest_intersection_steps(path1, path2)
+    );
+}
+
 fn main() {
     let input_txt = include_str!("../input.txt");
     part1(&input_txt);
+    part2(&input_txt);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{calculate_intersection_distance, Point, Segment};
+    use super::{
+        calculate_intersection_distance, calculate_shortest_intersection_steps, Point, Segment,
+        SegmentPath,
+    };
 
     #[test]
     fn test_segments() {
         assert_eq!(
-            Segment::from_path("R8,U5,L5,D3"),
+            SegmentPath::from_path("R8,U5,L5,D3").0,
             vec![
                 Segment::new_raw(0, 0, 8, 0),
                 Segment::new_raw(8, 0, 8, 5),
@@ -160,6 +250,11 @@ mod tests {
                 Segment::new_raw(3, 5, 3, 2)
             ]
         );
+    }
+
+    #[test]
+    fn test_contains() {
+        assert!(Segment::new_raw(3, 5, 3, 2).contains_point(Point::new(3, 3)));
     }
 
     #[test]
@@ -189,6 +284,28 @@ mod tests {
                 "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"
             ),
             135
+        );
+    }
+
+    #[test]
+    fn test_steps() {
+        assert_eq!(
+            calculate_shortest_intersection_steps("R8,U5,L5,D3", "U7,R6,D4,L4"),
+            30
+        );
+        assert_eq!(
+            calculate_shortest_intersection_steps(
+                "R75,D30,R83,U83,L12,D49,R71,U7,L72",
+                "U62,R66,U55,R34,D71,R55,D58,R83"
+            ),
+            610
+        );
+        assert_eq!(
+            calculate_shortest_intersection_steps(
+                "R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51",
+                "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"
+            ),
+            410
         );
     }
 }

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 struct Interpreter {
     data: Vec<u32>,
     initial: Vec<u32>,
@@ -74,6 +72,7 @@ impl Interpreter {
     }
 
     /// Dump intepreter data
+    #[cfg(test)]
     fn dump(&self) -> String {
         let str_dump: Vec<String> = self.data.iter().map(|x| x.to_string()).collect();
         str_dump.join(",")
