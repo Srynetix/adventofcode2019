@@ -1,4 +1,4 @@
-use aocutils::Interpreter;
+use common::Interpreter;
 
 fn part1(input_txt: &str) {
     let mut interpreter = Interpreter::new(input_txt);
