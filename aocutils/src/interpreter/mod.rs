@@ -1,4 +1,10 @@
-//! Interpreter code
+//! Interpreter module
+
+mod opcode;
+mod parameter_mode;
+
+pub use opcode::{OpCode, ParameteredOpCode};
+pub use parameter_mode::ParameterMode;
 
 /// Interpreter
 #[derive(Debug)]
@@ -8,90 +14,6 @@ pub struct Interpreter {
     cursor: usize,
     input_stream: Vec<i32>,
     output_stream: Vec<i32>,
-}
-
-/// OpCode
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum OpCode {
-    Add = 1,
-    Multiply = 2,
-    Store = 3,
-    Show = 4,
-    Exit = 99,
-}
-
-/// Parameter mode
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ParameterMode {
-    Position = 0,
-    Immediate = 1,
-}
-
-impl ParameterMode {
-    /// Parse parameter mode
-    pub fn parse(value: i32) -> Self {
-        match value {
-            0 => Self::Position,
-            1 => Self::Immediate,
-            _ => panic!("Unsupported parameter mode: {}", value),
-        }
-    }
-}
-
-/// Parametered OpCode
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ParameteredOpCode {
-    /// OpCode
-    pub code: OpCode,
-    /// Modes
-    pub modes: Vec<ParameterMode>,
-}
-
-impl OpCode {
-    /// Parse opcode
-    pub fn parse(code: i32) -> Self {
-        if code > 99 {
-            panic!("Opcode value is too high: {}", code);
-        }
-
-        match code {
-            1 => Self::Add,
-            2 => Self::Multiply,
-            3 => Self::Store,
-            4 => Self::Show,
-            99 => Self::Exit,
-            _ => panic!("Unsupported opcode: {}", code),
-        }
-    }
-}
-
-impl ParameteredOpCode {
-    /// Parse parametered opcode
-    pub fn parse(code: i32) -> Self {
-        let mut base = code;
-        let opcode = OpCode::parse(base % 100);
-        let mut parameters = vec![];
-        base /= 100;
-
-        while base > 0 {
-            let value = base % 10;
-            parameters.push(ParameterMode::parse(value));
-            base /= 10;
-        }
-
-        Self {
-            code: opcode,
-            modes: parameters,
-        }
-    }
-
-    /// Get parameter mode for argument index
-    pub fn get_parameter_mode(&self, index: usize) -> ParameterMode {
-        self.modes
-            .get(index)
-            .copied()
-            .unwrap_or_else(|| ParameterMode::Position)
-    }
 }
 
 impl Interpreter {
@@ -143,6 +65,18 @@ impl Interpreter {
         (interpreter.dump(), interpreter.dump_output())
     }
 
+    /// Run with input/output
+    pub fn run_with_input_output(input_txt: &str, input: &[i32]) -> String {
+        let mut interpreter = Self::new(input_txt);
+        for i in input {
+            interpreter.push_input(*i);
+        }
+
+        interpreter.run();
+
+        interpreter.dump_output()
+    }
+
     /// Get value at position
     pub fn get_value(&self, position: usize) -> Option<i32> {
         self.data.get(position).cloned()
@@ -180,6 +114,11 @@ impl Interpreter {
     pub fn set_input_values(&mut self, noun: i32, verb: i32) {
         self.data[1] = noun;
         self.data[2] = verb;
+    }
+
+    /// Set cursor value
+    pub fn set_cursor_value(&mut self, value: usize) {
+        self.cursor = value;
     }
 
     /// Restore data
@@ -261,6 +200,78 @@ impl Interpreter {
 
                         self.push_output(v1);
                     }
+                    OpCode::JumpIfTrue => {
+                        let v1 = self.get_value_at_cursor().unwrap();
+                        let v1 = self
+                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
+                            .unwrap();
+                        self.increment_cursor();
+                        let v2 = self.get_value_at_cursor().unwrap();
+                        let v2 = self
+                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
+                            .unwrap();
+                        self.increment_cursor();
+
+                        if v1 != 0 {
+                            self.set_cursor_value(v2 as usize);
+                        }
+                    }
+                    OpCode::JumpIfFalse => {
+                        let v1 = self.get_value_at_cursor().unwrap();
+                        let v1 = self
+                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
+                            .unwrap();
+                        self.increment_cursor();
+                        let v2 = self.get_value_at_cursor().unwrap();
+                        let v2 = self
+                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
+                            .unwrap();
+                        self.increment_cursor();
+
+                        if v1 == 0 {
+                            self.set_cursor_value(v2 as usize);
+                        }
+                    }
+                    OpCode::LessThan => {
+                        let v1 = self.get_value_at_cursor().unwrap();
+                        let v1 = self
+                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
+                            .unwrap();
+                        self.increment_cursor();
+                        let v2 = self.get_value_at_cursor().unwrap();
+                        let v2 = self
+                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
+                            .unwrap();
+                        self.increment_cursor();
+                        let v3 = self.get_value_at_cursor().unwrap();
+                        self.increment_cursor();
+
+                        if v1 < v2 {
+                            self.set_value(v3 as usize, 1);
+                        } else {
+                            self.set_value(v3 as usize, 0);
+                        }
+                    }
+                    OpCode::Equals => {
+                        let v1 = self.get_value_at_cursor().unwrap();
+                        let v1 = self
+                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
+                            .unwrap();
+                        self.increment_cursor();
+                        let v2 = self.get_value_at_cursor().unwrap();
+                        let v2 = self
+                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
+                            .unwrap();
+                        self.increment_cursor();
+                        let v3 = self.get_value_at_cursor().unwrap();
+                        self.increment_cursor();
+
+                        if v1 == v2 {
+                            self.set_value(v3 as usize, 1);
+                        } else {
+                            self.set_value(v3 as usize, 0);
+                        }
+                    }
                     OpCode::Exit => {
                         break;
                     }
@@ -320,6 +331,89 @@ mod tests {
         assert_eq!(
             Interpreter::run_and_dump_with_output("104,50,99"),
             ("104,50,99".to_owned(), "50".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_jumps_and_conditions() {
+        // Equals 8 (pos)
+        assert_eq!(
+            Interpreter::run_with_input_output("3,9,8,9,10,9,4,9,99,-1,8", &vec![8]),
+            "1".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output("3,9,8,9,10,9,4,9,99,-1,8", &vec![7]),
+            "0".to_owned()
+        );
+        // Less than 8 (pos)
+        assert_eq!(
+            Interpreter::run_with_input_output("3,9,7,9,10,9,4,9,99,-1,8", &vec![8]),
+            "0".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output("3,9,7,9,10,9,4,9,99,-1,8", &vec![7]),
+            "1".to_owned()
+        );
+        // Equals 8 (imm)
+        assert_eq!(
+            Interpreter::run_with_input_output("3,3,1108,-1,8,3,4,3,99", &vec![8]),
+            "1".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output("3,3,1108,-1,8,3,4,3,99", &vec![7]),
+            "0".to_owned()
+        );
+        // Less than 8 (imm)
+        assert_eq!(
+            Interpreter::run_with_input_output("3,3,1107,-1,8,3,4,3,99", &vec![8]),
+            "0".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output("3,3,1107,-1,8,3,4,3,99", &vec![7]),
+            "1".to_owned()
+        );
+
+        // Jump (pos)
+        assert_eq!(
+            Interpreter::run_with_input_output(
+                "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9",
+                &vec![0]
+            ),
+            "0".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output(
+                "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9",
+                &vec![5]
+            ),
+            "1".to_owned()
+        );
+        // Jump (imm)
+        assert_eq!(
+            Interpreter::run_with_input_output("3,3,1105,-1,9,1101,0,0,12,4,12,99,1", &vec![0]),
+            "0".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output("3,3,1105,-1,9,1101,0,0,12,4,12,99,1", &vec![5]),
+            "1".to_owned()
+        );
+
+        // Full
+        let full_code = "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,\
+                         1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,\
+                         46,1101,1000,1,20,4,20,1105,1,46,98,99";
+
+        assert_eq!(
+            Interpreter::run_with_input_output(full_code, &vec![7]),
+            "999".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output(full_code, &vec![8]),
+            "1000".to_owned()
+        );
+        assert_eq!(
+            Interpreter::run_with_input_output(full_code, &vec![9]),
+            "1001".to_owned()
         );
     }
 }
