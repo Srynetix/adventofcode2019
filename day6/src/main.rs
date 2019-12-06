@@ -100,7 +100,6 @@ fn part1(input_txt: &str) {
     println!("Result: {}", graph.count_total_orbits());
 }
 
-
 fn part2(input_txt: &str) {
     println!("[Part 2]");
     let graph = OrbitGraph::new(input_txt);
