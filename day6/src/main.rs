@@ -47,6 +47,51 @@ impl OrbitGraph {
 
         counter
     }
+
+    /// List transfers to target
+    pub fn list_transfers_to_target(&self, source: &str, target: &str) -> Vec<String> {
+        let source_path = self.list_orbits_at_point(source);
+        let target_path = self.list_orbits_at_point(target);
+        let mut path = vec![];
+        let mut intersection = "";
+
+        // Searching for intersection ...
+        for x in &source_path[1..] {
+            path.push(x.clone());
+            if target_path.contains(x) {
+                // Intersection found!
+                intersection = x;
+                break;
+            }
+        }
+
+        if intersection == "" {
+            // No intersection found, no path
+            return vec![];
+        }
+
+        // Searching for path to target ...
+        let mut dst_path: Vec<String> = vec![];
+        for x in &target_path {
+            if x == intersection {
+                // Intersection found, just reverse dst_path and add it to path
+                for y in dst_path.iter().rev() {
+                    path.push(y.clone());
+                }
+                break;
+            }
+
+            // Store in path
+            dst_path.push(x.clone());
+        }
+
+        path
+    }
+
+    /// Count transfers to target
+    pub fn count_transfers_to_target(&self, source: &str, target: &str) -> usize {
+        self.list_transfers_to_target(source, target).len()
+    }
 }
 
 fn part1(input_txt: &str) {
@@ -55,9 +100,17 @@ fn part1(input_txt: &str) {
     println!("Result: {}", graph.count_total_orbits());
 }
 
+
+fn part2(input_txt: &str) {
+    println!("[Part 2]");
+    let graph = OrbitGraph::new(input_txt);
+    println!("Result: {}", graph.count_transfers_to_target("YOU", "SAN"));
+}
+
 fn main() {
     let input_txt = include_str!("../input.txt");
     part1(&input_txt);
+    part2(&input_txt);
 }
 
 #[cfg(test)]
@@ -76,6 +129,22 @@ mod tests {
          E)J\n\
          J)K\n\
          K)L"
+    }
+
+    fn input_part2() -> &'static str {
+        "COM)B\n\
+         B)C\n\
+         C)D\n\
+         D)E\n\
+         E)F\n\
+         B)G\n\
+         G)H\n\
+         D)I\n\
+         E)J\n\
+         J)K\n\
+         K)L\n\
+         K)YOU\n\
+         I)SAN"
     }
 
     #[test]
@@ -111,5 +180,20 @@ mod tests {
     fn test_orbits_total_count() {
         let graph = OrbitGraph::new(input_part1());
         assert_eq!(graph.count_total_orbits(), 42);
+    }
+
+    #[test]
+    fn test_transfers() {
+        let graph = OrbitGraph::new(input_part2());
+        assert_eq!(
+            graph.list_transfers_to_target("YOU", "SAN").join(","),
+            "J,E,D,I".to_owned()
+        );
+    }
+
+    #[test]
+    fn test_transfers_count() {
+        let graph = OrbitGraph::new(input_part2());
+        assert_eq!(graph.count_transfers_to_target("YOU", "SAN"), 4);
     }
 }
