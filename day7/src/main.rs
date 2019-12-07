@@ -42,13 +42,33 @@ impl AmplifierSystem {
         output
     }
 
-    /// Find max thruster signal
-    pub fn find_max_thruster_signal(
+    pub fn run_feedback_phase_sequence(
         &self,
         interpreter: &mut Interpreter,
-        amp_count: usize,
-    ) -> (i32, String) {
-        let permutations: Vec<_> = (0..amp_count).permutations(amp_count).collect();
+        phase_sequence: &str,
+    ) -> i32 {
+        let seq: Vec<i32> = phase_sequence
+            .split(',')
+            .map(|x| x.parse().unwrap())
+            .collect();
+        let mut output = 0;
+
+        loop {
+            for i in &seq {
+                output = self.run_phase(interpreter, *i, output);
+            }
+
+            if interpreter.get_output_stream().is_empty() {
+                break;
+            }
+        }
+
+        output
+    }
+
+    /// Find max thruster signal
+    pub fn find_max_thruster_signal(&self, interpreter: &mut Interpreter) -> (i32, String) {
+        let permutations: Vec<_> = (0..5).permutations(5).collect();
         let mut max_value = 0;
         let mut max_permutation = String::new();
 
@@ -63,13 +83,33 @@ impl AmplifierSystem {
 
         (max_value, max_permutation)
     }
+
+    pub fn find_max_feedback_thruster_signal(
+        &self,
+        interpreter: &mut Interpreter,
+    ) -> (i32, String) {
+        let permutations: Vec<_> = (5..10).permutations(5).collect();
+        let mut max_value = 0;
+        let mut max_permutation = String::new();
+
+        for permutation in permutations {
+            let phase_sequence: String = permutation.iter().map(|x| x.to_string()).join(",");
+            let output = self.run_feedback_phase_sequence(interpreter, &phase_sequence);
+            if output > max_value {
+                max_value = output;
+                max_permutation = phase_sequence;
+            }
+        }
+
+        (max_value, max_permutation)
+    }
 }
 
 fn part1(input_txt: &str) {
     println!("[Part 1]");
     let mut interpreter = Interpreter::new(input_txt);
     let system = AmplifierSystem::new();
-    let (result, _) = system.find_max_thruster_signal(&mut interpreter, 5);
+    let (result, _) = system.find_max_thruster_signal(&mut interpreter);
     println!("Result: {}", result);
 }
 
@@ -87,7 +127,7 @@ mod tests {
         fn run_with_code(input_txt: &str) -> (i32, String) {
             let mut interpreter = Interpreter::new(input_txt);
             let system = AmplifierSystem::new();
-            system.find_max_thruster_signal(&mut interpreter, 5)
+            system.find_max_thruster_signal(&mut interpreter)
         }
 
         fn run_phase_sequence(input_txt: &str, seq: &str) -> i32 {
