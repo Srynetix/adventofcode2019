@@ -104,25 +104,26 @@ fn count_valid_passwords_non_repeated(min_range: u32, max_range: u32) -> u32 {
     count
 }
 
-fn part1(input_txt: &str) {
+fn part1(input_txt: &str) -> u32 {
     let entries: Vec<u32> = input_txt.split('-').map(|x| x.parse().unwrap()).collect();
-    println!("[Part 1]");
-    println!("Result: {}", count_valid_passwords(entries[0], entries[1]));
+    count_valid_passwords(entries[0], entries[1])
 }
 
-fn part2(input_txt: &str) {
+fn part2(input_txt: &str) -> u32 {
     let entries: Vec<u32> = input_txt.split('-').map(|x| x.parse().unwrap()).collect();
-    println!("[Part 2]");
-    println!(
-        "Result: {}",
-        count_valid_passwords_non_repeated(entries[0], entries[1])
-    );
+    count_valid_passwords_non_repeated(entries[0], entries[1])
 }
 
 fn main() {
     let input_txt = include_str!("../input.txt");
-    part1(&input_txt);
-    part2(&input_txt);
+
+    println!("[Part 1]");
+    let r = part1(&input_txt);
+    println!("Result: {}", r);
+
+    println!("[Part 2]");
+    let r = part2(&input_txt);
+    println!("Result: {}", r);
 }
 
 #[cfg(test)]
@@ -168,5 +169,12 @@ mod tests {
         assert_eq!(count_valid_passwords_non_repeated(100_000, 111_166), 5);
         assert_eq!(count_valid_passwords_non_repeated(100_000, 111_177), 6);
         assert_eq!(count_valid_passwords_non_repeated(100_000, 111_223), 9);
+    }
+
+    #[test]
+    fn test_results() {
+        let input_txt = include_str!("../input.txt");
+        assert_eq!(part1(&input_txt), 1169);
+        assert_eq!(part2(&input_txt), 757);
     }
 }

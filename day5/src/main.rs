@@ -1,23 +1,39 @@
 use common::Interpreter;
 
-fn part1(input_txt: &str) {
+fn part1(input_txt: &str) -> i32 {
     let mut interpreter = Interpreter::new(input_txt);
-    println!("[Part 1]");
     interpreter.push_input(1);
     interpreter.run();
-    println!("Result: {}", interpreter.pop_output().unwrap());
+    interpreter.get_output_stream().last().copied().unwrap()
 }
 
-fn part2(input_txt: &str) {
+fn part2(input_txt: &str) -> i32 {
     let mut interpreter = Interpreter::new(input_txt);
-    println!("[Part 2]");
     interpreter.push_input(5);
     interpreter.run();
-    println!("Result: {}", interpreter.pop_output().unwrap());
+    interpreter.pop_output().unwrap()
 }
 
 fn main() {
     let input_txt = include_str!("../input.txt");
-    part1(&input_txt);
-    part2(&input_txt);
+
+    println!("[Part 1]");
+    let r = part1(&input_txt);
+    println!("Result: {}", r);
+
+    println!("[Part 2]");
+    let r = part2(&input_txt);
+    println!("Result: {}", r);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_results() {
+        let input_txt = include_str!("../input.txt");
+        assert_eq!(part1(&input_txt), 12428642);
+        assert_eq!(part2(&input_txt), 918655);
+    }
 }

@@ -6,8 +6,19 @@ mod parameter_mode;
 pub use opcode::{Address, OpCode, Register};
 pub use parameter_mode::ParameterMode;
 
+/// Execution state
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionState {
+    /// Continuing
+    Next,
+    /// Quitting
+    Exit,
+    /// Waiting
+    Wait,
+}
+
 /// Interpreter
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Interpreter {
     data: Vec<i32>,
     initial: Vec<i32>,
@@ -171,7 +182,107 @@ impl Interpreter {
         &self.output_stream
     }
 
-    /// Run intepreter on initial data
+    /// Run step
+    pub fn step(&mut self) -> (OpCode, ExecutionState) {
+        let code_stream = self.get_stream_at_cursor();
+        if code_stream.is_empty() {
+            return (OpCode::Exit, ExecutionState::Exit);
+        }
+
+        if self.debug {
+            println!("Reading stream {:?}", code_stream);
+        }
+
+        let (opcode, count) = OpCode::parse(code_stream);
+        if self.debug {
+            println!("Opcode: {:?}", opcode.dump());
+        }
+
+        match opcode {
+            OpCode::Add(r1, r2, a) => {
+                let v1 = self.read_register(r1);
+                let v2 = self.read_register(r2);
+                self.set_value(a.read(), v1 + v2);
+                self.advance_cursor(count);
+            }
+            OpCode::Multiply(r1, r2, a) => {
+                let v1 = self.read_register(r1);
+                let v2 = self.read_register(r2);
+                self.set_value(a.read(), v1 * v2);
+                self.advance_cursor(count);
+            }
+            OpCode::Store(a) => {
+                if let Some(input) = self.pop_input() {
+                    if self.debug {
+                        println!("Getting input {}", input);
+                    }
+                    let output = a.read();
+                    self.set_value(output, input);
+                    self.advance_cursor(count);
+                } else {
+                    if self.debug {
+                        println!("[WAITING]");
+                    }
+                    return (opcode, ExecutionState::Wait);
+                }
+            }
+            OpCode::Show(r) => {
+                let v = self.read_register(r);
+                self.push_output(v);
+                if self.debug {
+                    println!("Outputting: {}", v);
+                }
+                self.advance_cursor(count);
+            }
+            OpCode::JumpIfTrue(ri, ro) => {
+                let i = self.read_register(ri);
+                if i != 0 {
+                    let o = self.read_register(ro);
+                    self.set_cursor_value(o as usize);
+                } else {
+                    self.advance_cursor(count);
+                }
+            }
+            OpCode::JumpIfFalse(ri, ro) => {
+                let i = self.read_register(ri);
+                if i == 0 {
+                    let o = self.read_register(ro);
+                    self.set_cursor_value(o as usize);
+                } else {
+                    self.advance_cursor(count);
+                }
+            }
+            OpCode::LessThan(r1, r2, a) => {
+                let v1 = self.read_register(r1);
+                let v2 = self.read_register(r2);
+                let addr = a.read();
+                if v1 < v2 {
+                    self.set_value(addr, 1);
+                } else {
+                    self.set_value(addr, 0);
+                }
+                self.advance_cursor(count);
+            }
+            OpCode::Equals(r1, r2, a) => {
+                let v1 = self.read_register(r1);
+                let v2 = self.read_register(r2);
+                let addr = a.read();
+                if v1 == v2 {
+                    self.set_value(addr, 1);
+                } else {
+                    self.set_value(addr, 0);
+                }
+                self.advance_cursor(count);
+            }
+            OpCode::Exit => {
+                return (opcode, ExecutionState::Exit);
+            }
+        }
+
+        (opcode, ExecutionState::Next)
+    }
+
+    /// Run interpreter on initial data
     pub fn run(&mut self) -> String {
         let mut output = String::new();
         if self.debug {
@@ -179,90 +290,14 @@ impl Interpreter {
         }
 
         loop {
-            let code_stream = self.get_stream_at_cursor();
-            if code_stream.is_empty() {
-                break;
-            }
-
-            if self.debug {
-                println!("Reading stream {:?}", code_stream);
-            }
-
-            let (opcode, count) = OpCode::parse(code_stream);
+            let (opcode, state) = self.step();
             output.push_str(&opcode.dump());
             output.push('\n');
 
-            if self.debug {
-                println!("Opcode: {:?}", opcode.dump());
-            }
-
-            match opcode {
-                OpCode::Add(r1, r2, a) => {
-                    let v1 = self.read_register(r1);
-                    let v2 = self.read_register(r2);
-                    self.set_value(a.read(), v1 + v2);
-                    self.advance_cursor(count);
-                }
-                OpCode::Multiply(r1, r2, a) => {
-                    let v1 = self.read_register(r1);
-                    let v2 = self.read_register(r2);
-                    self.set_value(a.read(), v1 * v2);
-                    self.advance_cursor(count);
-                }
-                OpCode::Store(a) => {
-                    let input = self.pop_input().expect("Input stack is empty");
-                    let output = a.read();
-                    self.set_value(output, input);
-                    self.advance_cursor(count);
-                }
-                OpCode::Show(r) => {
-                    let v = self.read_register(r);
-                    self.push_output(v);
-                    self.advance_cursor(count);
-                }
-                OpCode::JumpIfTrue(ri, ro) => {
-                    let i = self.read_register(ri);
-                    if i != 0 {
-                        let o = self.read_register(ro);
-                        self.set_cursor_value(o as usize);
-                    } else {
-                        self.advance_cursor(count);
-                    }
-                }
-                OpCode::JumpIfFalse(ri, ro) => {
-                    let i = self.read_register(ri);
-                    if i == 0 {
-                        let o = self.read_register(ro);
-                        self.set_cursor_value(o as usize);
-                    } else {
-                        self.advance_cursor(count);
-                    }
-                }
-                OpCode::LessThan(r1, r2, a) => {
-                    let v1 = self.read_register(r1);
-                    let v2 = self.read_register(r2);
-                    let addr = a.read();
-                    if v1 < v2 {
-                        self.set_value(addr, 1);
-                    } else {
-                        self.set_value(addr, 0);
-                    }
-                    self.advance_cursor(count);
-                }
-                OpCode::Equals(r1, r2, a) => {
-                    let v1 = self.read_register(r1);
-                    let v2 = self.read_register(r2);
-                    let addr = a.read();
-                    if v1 == v2 {
-                        self.set_value(addr, 1);
-                    } else {
-                        self.set_value(addr, 0);
-                    }
-                    self.advance_cursor(count);
-                }
-                OpCode::Exit => {
-                    break;
-                }
+            match state {
+                ExecutionState::Next => (),
+                ExecutionState::Exit => break,
+                ExecutionState::Wait => break,
             }
         }
 

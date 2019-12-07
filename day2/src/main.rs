@@ -1,16 +1,14 @@
 use common::Interpreter;
 
-fn part1(input_txt: &str) {
+fn part1(input_txt: &str) -> i32 {
     let mut interpreter = Interpreter::new(input_txt);
-    println!("[Part 1]");
     interpreter.restore_alarm_state();
     interpreter.run();
-    println!("Result: {}", interpreter.get_value(0).unwrap());
+    interpreter.get_value(0).unwrap()
 }
 
-fn part2(input_txt: &str, answer: i32) {
+fn part2(input_txt: &str, answer: i32) -> i32 {
     let mut interpreter = Interpreter::new(input_txt);
-    println!("[Part 2]");
 
     for inp1 in 0..99 {
         for inp2 in 0..99 {
@@ -19,15 +17,34 @@ fn part2(input_txt: &str, answer: i32) {
             interpreter.run();
             let first_value = interpreter.get_value(0).unwrap();
             if first_value == answer {
-                println!("Result: 100 * {} + {} = {}", inp1, inp2, 100 * inp1 + inp2);
-                return;
+                return 100 * inp1 + inp2;
             }
         }
     }
+
+    0
 }
 
 fn main() {
     let input_txt = include_str!("../input.txt");
-    part1(&input_txt);
-    part2(&input_txt, 19_690_720);
+
+    println!("[Part 1]");
+    let r = part1(&input_txt);
+    println!("Result: {}", r);
+
+    println!("[Part 2]");
+    let r = part2(&input_txt, 19_690_720);
+    println!("Result: {}", r);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_results() {
+        let input_txt = include_str!("../input.txt");
+        assert_eq!(part1(&input_txt), 3765464);
+        assert_eq!(part2(&input_txt, 19_690_720), 7610);
+    }
 }

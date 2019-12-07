@@ -205,39 +205,36 @@ fn calculate_shortest_intersection_steps(first_path: &str, second_path: &str) ->
     first_seg_path.shortest_intersection_steps(&second_seg_path)
 }
 
-fn part1(input_txt: &str) {
+fn part1(input_txt: &str) -> u32 {
     let paths: Vec<&str> = input_txt.split('\n').collect();
     let path1 = paths[0];
     let path2 = paths[1];
 
-    println!("[Part 1]");
-    println!("Result: {}", calculate_intersection_distance(path1, path2));
+    calculate_intersection_distance(path1, path2)
 }
 
-fn part2(input_txt: &str) {
+fn part2(input_txt: &str) -> u32 {
     let paths: Vec<&str> = input_txt.split('\n').collect();
     let path1 = paths[0];
     let path2 = paths[1];
 
-    println!("[Part 2]");
-    println!(
-        "Result: {}",
-        calculate_shortest_intersection_steps(path1, path2)
-    );
+    calculate_shortest_intersection_steps(path1, path2)
 }
 
 fn main() {
     let input_txt = include_str!("../input.txt");
-    part1(&input_txt);
-    part2(&input_txt);
+    println!("[Part 1]");
+    let r = part1(&input_txt);
+    println!("Result: {}", r);
+
+    println!("[Part 2]");
+    let r = part2(&input_txt);
+    println!("Result: {}", r);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        calculate_intersection_distance, calculate_shortest_intersection_steps, Point, Segment,
-        SegmentPath,
-    };
+    use super::*;
 
     #[test]
     fn test_segments() {
@@ -307,5 +304,12 @@ mod tests {
             ),
             410
         );
+    }
+
+    #[test]
+    fn test_results() {
+        let input_txt = include_str!("../input.txt");
+        assert_eq!(part1(&input_txt), 1195);
+        assert_eq!(part2(&input_txt), 91518);
     }
 }

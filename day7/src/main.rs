@@ -1,4 +1,4 @@
-use common::Interpreter;
+use common::interpreter::{ExecutionState, Interpreter};
 use itertools::Itertools;
 
 #[derive(Debug, Default)]
@@ -17,7 +17,7 @@ impl AmplifierSystem {
 
         // Push phase input
         interpreter.push_input(phase);
-        // Push previous amp input
+        // Push amp input
         interpreter.push_input(input);
 
         // Run interpreter
@@ -42,28 +42,60 @@ impl AmplifierSystem {
         output
     }
 
+    /// Run interpreter for feedback phase sequence
     pub fn run_feedback_phase_sequence(
         &self,
         interpreter: &mut Interpreter,
         phase_sequence: &str,
     ) -> i32 {
-        let seq: Vec<i32> = phase_sequence
+        let mut seq: Vec<i32> = phase_sequence
             .split(',')
             .map(|x| x.parse().unwrap())
             .collect();
-        let mut output = 0;
+        let mut interpreters: Vec<_> = (0..5).map(|_| interpreter.clone()).collect();
 
-        loop {
-            for i in &seq {
-                output = self.run_phase(interpreter, *i, output);
-            }
+        // Initialization
+        for interp in interpreters.iter_mut() {
+            interp.reset_intepreter();
+            interp.push_input(seq.remove(0));
+        }
 
-            if interpreter.get_output_stream().is_empty() {
-                break;
+        // Last output
+        let mut last_output = 0;
+
+        // Run
+        'outer: loop {
+            for index in 0..5 {
+                // Run interpreter
+                {
+                    let interp = interpreters.get_mut(index).unwrap();
+                    interp.push_input(last_output);
+
+                    'inner: loop {
+                        let (_, state) = interp.step();
+                        match state {
+                            ExecutionState::Wait => {
+                                last_output = interp.pop_output().unwrap();
+                                break 'inner;
+                            }
+                            ExecutionState::Exit => {
+                                last_output = interp.pop_output().unwrap();
+                                // Last index?
+                                if index == 4 {
+                                    break 'outer;
+                                } else {
+                                    break 'inner;
+                                }
+                            }
+                            ExecutionState::Next => (),
+                        }
+                    }
+                }
             }
         }
 
-        output
+        // Pop last output
+        last_output
     }
 
     /// Find max thruster signal
@@ -105,17 +137,30 @@ impl AmplifierSystem {
     }
 }
 
-fn part1(input_txt: &str) {
-    println!("[Part 1]");
+fn part1(input_txt: &str) -> i32 {
     let mut interpreter = Interpreter::new(input_txt);
     let system = AmplifierSystem::new();
     let (result, _) = system.find_max_thruster_signal(&mut interpreter);
-    println!("Result: {}", result);
+    result
+}
+
+fn part2(input_txt: &str) -> i32 {
+    let mut interpreter = Interpreter::new(input_txt);
+    let system = AmplifierSystem::new();
+    let (result, _) = system.find_max_feedback_thruster_signal(&mut interpreter);
+    result
 }
 
 fn main() {
     let input_txt = include_str!("../input.txt");
-    part1(&input_txt);
+
+    println!("[Part 1]");
+    let r = part1(&input_txt);
+    println!("Result: {}", r);
+
+    println!("[Part 2]");
+    let r = part2(&input_txt);
+    println!("Result: {}", r);
 }
 
 #[cfg(test)]
@@ -164,5 +209,52 @@ mod tests {
             ),
             (65210, "1,0,4,3,2".to_owned())
         );
+    }
+
+    #[test]
+    fn test_feedback_amplifiers() {
+        fn run_with_code(input_txt: &str) -> (i32, String) {
+            let mut interpreter = Interpreter::new(input_txt);
+            let system = AmplifierSystem::new();
+            system.find_max_feedback_thruster_signal(&mut interpreter)
+        }
+
+        fn run_feedback_phase_sequence(input_txt: &str, seq: &str) -> i32 {
+            let mut interpreter = Interpreter::new(input_txt);
+            let system = AmplifierSystem::new();
+            system.run_feedback_phase_sequence(&mut interpreter, seq)
+        }
+
+        assert_eq!(
+            run_feedback_phase_sequence(
+                "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,\
+                 27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5",
+                "9,8,7,6,5"
+            ),
+            139629729
+        );
+        assert_eq!(
+            run_with_code(
+                "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,\
+                 27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"
+            ),
+            (139629729, "9,8,7,6,5".to_owned())
+        );
+
+        assert_eq!(
+            run_with_code(
+                "3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,\
+                 -5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,\
+                 53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10"
+            ),
+            (18216, "9,7,8,5,6".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_results() {
+        let input_txt = include_str!("../input.txt");
+        assert_eq!(part1(&input_txt), 437860);
+        assert_eq!(part2(&input_txt), 49810599);
     }
 }
