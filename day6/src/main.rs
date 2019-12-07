@@ -94,22 +94,26 @@ impl OrbitGraph {
     }
 }
 
-fn part1(input_txt: &str) {
-    println!("[Part 1]");
+fn part1(input_txt: &str) -> usize {
     let graph = OrbitGraph::new(input_txt);
-    println!("Result: {}", graph.count_total_orbits());
+    graph.count_total_orbits()
 }
 
-fn part2(input_txt: &str) {
-    println!("[Part 2]");
+fn part2(input_txt: &str) -> usize {
     let graph = OrbitGraph::new(input_txt);
-    println!("Result: {}", graph.count_transfers_to_target("YOU", "SAN"));
+    graph.count_transfers_to_target("YOU", "SAN")
 }
 
 fn main() {
     let input_txt = include_str!("../input.txt");
-    part1(&input_txt);
-    part2(&input_txt);
+
+    println!("[Part 1]");
+    let r = part1(&input_txt);
+    println!("Result: {}", r);
+
+    println!("[Part 2]");
+    let r = part2(&input_txt);
+    println!("Result: {}", r);
 }
 
 #[cfg(test)]
@@ -194,5 +198,12 @@ mod tests {
     fn test_transfers_count() {
         let graph = OrbitGraph::new(input_part2());
         assert_eq!(graph.count_transfers_to_target("YOU", "SAN"), 4);
+    }
+
+    #[test]
+    fn test_results() {
+        let input_txt = include_str!("../input.txt");
+        assert_eq!(part1(&input_txt), 147807);
+        assert_eq!(part2(&input_txt), 229);
     }
 }
