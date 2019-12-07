@@ -3,7 +3,7 @@
 mod opcode;
 mod parameter_mode;
 
-pub use opcode::{OpCode, ParameteredOpCode};
+pub use opcode::{Address, OpCode, Register};
 pub use parameter_mode::ParameterMode;
 
 /// Interpreter
@@ -14,6 +14,7 @@ pub struct Interpreter {
     cursor: usize,
     input_stream: Vec<i32>,
     output_stream: Vec<i32>,
+    debug: bool,
 }
 
 impl Interpreter {
@@ -27,7 +28,13 @@ impl Interpreter {
             cursor: 0,
             output_stream: vec![],
             input_stream: vec![],
+            debug: false,
         }
+    }
+
+    /// Set debug mode
+    pub fn set_debug_mode(&mut self, value: bool) {
+        self.debug = value;
     }
 
     /// Push input value
@@ -37,7 +44,11 @@ impl Interpreter {
 
     /// Pop input
     pub fn pop_input(&mut self) -> Option<i32> {
-        self.input_stream.pop()
+        if self.input_stream.is_empty() {
+            None
+        } else {
+            Some(self.input_stream.remove(0))
+        }
     }
 
     /// Push output value
@@ -47,7 +58,11 @@ impl Interpreter {
 
     /// Pop output
     pub fn pop_output(&mut self) -> Option<i32> {
-        self.output_stream.pop()
+        if self.output_stream.is_empty() {
+            None
+        } else {
+            Some(self.output_stream.remove(0))
+        }
     }
 
     /// Run and dump
@@ -60,7 +75,7 @@ impl Interpreter {
     /// Run and dump with output
     pub fn run_and_dump_with_output(input_txt: &str) -> (String, String) {
         let mut interpreter = Self::new(input_txt);
-        interpreter.run();
+        let _ = interpreter.run();
 
         (interpreter.dump(), interpreter.dump_output())
     }
@@ -72,7 +87,7 @@ impl Interpreter {
             interpreter.push_input(*i);
         }
 
-        interpreter.run();
+        let _ = interpreter.run();
 
         interpreter.dump_output()
     }
@@ -87,22 +102,22 @@ impl Interpreter {
         self.data[position] = value;
     }
 
-    /// Get cursor value
-    pub fn get_value_at_cursor(&self) -> Option<i32> {
-        self.get_value(self.cursor)
-    }
-
-    /// Get parametered value
-    pub fn get_parametered_value(&self, value: i32, mode: ParameterMode) -> Option<i32> {
-        match mode {
-            ParameterMode::Position => self.get_value(value as usize),
-            ParameterMode::Immediate => Some(value),
+    /// Read register
+    pub fn read_register(&self, reg: Register) -> i32 {
+        match reg.mode {
+            ParameterMode::Position => self.get_value(reg.value as usize).unwrap(),
+            ParameterMode::Immediate => reg.value,
         }
     }
 
     /// Increment cursor
     pub fn increment_cursor(&mut self) {
         self.cursor += 1;
+    }
+
+    /// Advance cursor from opcode
+    pub fn advance_cursor(&mut self, amount: usize) {
+        self.cursor += amount;
     }
 
     /// Restore 1202 program alarm state
@@ -125,6 +140,13 @@ impl Interpreter {
     pub fn reset_intepreter(&mut self) {
         self.data = self.initial.clone();
         self.cursor = 0;
+        self.input_stream.clear();
+        self.output_stream.clear();
+    }
+
+    /// Get stream at cursor
+    pub fn get_stream_at_cursor(&self) -> &[i32] {
+        &self.data[self.cursor as usize..]
     }
 
     /// Dump intepreter data
@@ -139,165 +161,121 @@ impl Interpreter {
         str_dump.join(",")
     }
 
+    /// Get input stream
+    pub fn get_input_stream(&self) -> &[i32] {
+        &self.input_stream
+    }
+
     /// Get output stream
     pub fn get_output_stream(&self) -> &[i32] {
         &self.output_stream
     }
 
     /// Run intepreter on initial data
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> String {
+        let mut output = String::new();
+        if self.debug {
+            println!("Interpreter input: {:?}", self.get_input_stream());
+        }
+
         loop {
-            let opcode = self.get_value_at_cursor().map(ParameteredOpCode::parse);
-            self.increment_cursor();
-
-            if let Some(opcode) = opcode {
-                match opcode.code {
-                    OpCode::Add => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v2 = self.get_value_at_cursor().unwrap();
-                        let v2 = self
-                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v3 = self.get_value_at_cursor().unwrap();
-                        self.increment_cursor();
-
-                        self.set_value(v3 as usize, v1 + v2);
-                    }
-                    OpCode::Multiply => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v2 = self.get_value_at_cursor().unwrap();
-                        let v2 = self
-                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v3 = self.get_value_at_cursor().unwrap();
-                        self.increment_cursor();
-
-                        self.set_value(v3 as usize, v1 * v2);
-                    }
-                    OpCode::Store => {
-                        let input = self.pop_input().expect("Input stack is empty");
-                        let output = self.get_value_at_cursor().unwrap();
-                        self.increment_cursor();
-
-                        self.set_value(output as usize, input);
-                    }
-                    OpCode::Show => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-
-                        self.push_output(v1);
-                    }
-                    OpCode::JumpIfTrue => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v2 = self.get_value_at_cursor().unwrap();
-                        let v2 = self
-                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
-                            .unwrap();
-                        self.increment_cursor();
-
-                        if v1 != 0 {
-                            self.set_cursor_value(v2 as usize);
-                        }
-                    }
-                    OpCode::JumpIfFalse => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v2 = self.get_value_at_cursor().unwrap();
-                        let v2 = self
-                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
-                            .unwrap();
-                        self.increment_cursor();
-
-                        if v1 == 0 {
-                            self.set_cursor_value(v2 as usize);
-                        }
-                    }
-                    OpCode::LessThan => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v2 = self.get_value_at_cursor().unwrap();
-                        let v2 = self
-                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v3 = self.get_value_at_cursor().unwrap();
-                        self.increment_cursor();
-
-                        if v1 < v2 {
-                            self.set_value(v3 as usize, 1);
-                        } else {
-                            self.set_value(v3 as usize, 0);
-                        }
-                    }
-                    OpCode::Equals => {
-                        let v1 = self.get_value_at_cursor().unwrap();
-                        let v1 = self
-                            .get_parametered_value(v1, opcode.get_parameter_mode(0))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v2 = self.get_value_at_cursor().unwrap();
-                        let v2 = self
-                            .get_parametered_value(v2, opcode.get_parameter_mode(1))
-                            .unwrap();
-                        self.increment_cursor();
-                        let v3 = self.get_value_at_cursor().unwrap();
-                        self.increment_cursor();
-
-                        if v1 == v2 {
-                            self.set_value(v3 as usize, 1);
-                        } else {
-                            self.set_value(v3 as usize, 0);
-                        }
-                    }
-                    OpCode::Exit => {
-                        break;
-                    }
-                }
-            } else {
+            let code_stream = self.get_stream_at_cursor();
+            if code_stream.is_empty() {
                 break;
             }
+
+            if self.debug {
+                println!("Reading stream {:?}", code_stream);
+            }
+
+            let (opcode, count) = OpCode::parse(code_stream);
+            output.push_str(&opcode.dump());
+            output.push('\n');
+
+            if self.debug {
+                println!("Opcode: {:?}", opcode.dump());
+            }
+
+            match opcode {
+                OpCode::Add(r1, r2, a) => {
+                    let v1 = self.read_register(r1);
+                    let v2 = self.read_register(r2);
+                    self.set_value(a.read(), v1 + v2);
+                    self.advance_cursor(count);
+                }
+                OpCode::Multiply(r1, r2, a) => {
+                    let v1 = self.read_register(r1);
+                    let v2 = self.read_register(r2);
+                    self.set_value(a.read(), v1 * v2);
+                    self.advance_cursor(count);
+                }
+                OpCode::Store(a) => {
+                    let input = self.pop_input().expect("Input stack is empty");
+                    let output = a.read();
+                    self.set_value(output, input);
+                    self.advance_cursor(count);
+                }
+                OpCode::Show(r) => {
+                    let v = self.read_register(r);
+                    self.push_output(v);
+                    self.advance_cursor(count);
+                }
+                OpCode::JumpIfTrue(ri, ro) => {
+                    let i = self.read_register(ri);
+                    if i != 0 {
+                        let o = self.read_register(ro);
+                        self.set_cursor_value(o as usize);
+                    } else {
+                        self.advance_cursor(count);
+                    }
+                }
+                OpCode::JumpIfFalse(ri, ro) => {
+                    let i = self.read_register(ri);
+                    if i == 0 {
+                        let o = self.read_register(ro);
+                        self.set_cursor_value(o as usize);
+                    } else {
+                        self.advance_cursor(count);
+                    }
+                }
+                OpCode::LessThan(r1, r2, a) => {
+                    let v1 = self.read_register(r1);
+                    let v2 = self.read_register(r2);
+                    let addr = a.read();
+                    if v1 < v2 {
+                        self.set_value(addr, 1);
+                    } else {
+                        self.set_value(addr, 0);
+                    }
+                    self.advance_cursor(count);
+                }
+                OpCode::Equals(r1, r2, a) => {
+                    let v1 = self.read_register(r1);
+                    let v2 = self.read_register(r2);
+                    let addr = a.read();
+                    if v1 == v2 {
+                        self.set_value(addr, 1);
+                    } else {
+                        self.set_value(addr, 0);
+                    }
+                    self.advance_cursor(count);
+                }
+                OpCode::Exit => {
+                    break;
+                }
+            }
         }
+
+        if self.debug {
+            println!("Interpreter output: {:?}", self.get_output_stream());
+        }
+        output
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Interpreter, OpCode, ParameterMode, ParameteredOpCode};
-
-    #[test]
-    fn test_opcodes() {
-        assert_eq!(OpCode::parse(3), OpCode::Store);
-        assert_eq!(
-            ParameteredOpCode::parse(1002),
-            ParameteredOpCode {
-                code: OpCode::Multiply,
-                modes: vec![ParameterMode::Position, ParameterMode::Immediate]
-            }
-        );
-    }
+    use super::*;
 
     #[test]
     fn test_simple() {
@@ -332,6 +310,19 @@ mod tests {
             Interpreter::run_and_dump_with_output("104,50,99"),
             ("104,50,99".to_owned(), "50".to_owned())
         );
+    }
+
+    #[test]
+    fn test_trace() {
+        let code = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
+        let trace = "STORE 3\n\
+                     JMPT [8], [9]\n\
+                     SHOW 12\n\
+                     EXIT\n";
+
+        let mut interpreter = Interpreter::new(code);
+        interpreter.push_input(8);
+        assert_eq!(interpreter.run(), trace.to_owned());
     }
 
     #[test]
