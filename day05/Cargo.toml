@@ -1,6 +1,6 @@
 [package]
-name = "day2"
-version = "0.1.0"
+name = "day05"
+version = "1.0.0"
 authors = ["Denis Bourge <denis.bourge@sharingcloud.com>"]
 edition = "2018"
 
