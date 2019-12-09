@@ -8,8 +8,12 @@ fn part1(input_txt: &str) -> i64 {
     interpreter.pop_output().unwrap()
 }
 
-fn part2(_input_txt: &str) -> i64 {
-    0
+fn part2(input_txt: &str) -> i64 {
+    let mut interpreter = Interpreter::new(input_txt);
+    // Boost mode
+    interpreter.push_input(2);
+    interpreter.run();
+    interpreter.pop_output().unwrap()
 }
 
 fn main() {
@@ -32,6 +36,6 @@ mod tests {
     fn test_results() {
         let input_txt = include_str!("../input.txt");
         assert_eq!(part1(&input_txt), 3_765_554_916);
-        assert_eq!(part2(&input_txt), 0);
+        assert_eq!(part2(&input_txt), 76_642);
     }
 }
