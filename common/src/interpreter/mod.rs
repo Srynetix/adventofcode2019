@@ -3,7 +3,7 @@
 mod opcode;
 mod parameter_mode;
 
-pub use opcode::{Address, OpCode, Register};
+pub use opcode::{OpCode, Register};
 pub use parameter_mode::ParameterMode;
 
 /// Execution state
@@ -20,18 +20,19 @@ pub enum ExecutionState {
 /// Interpreter
 #[derive(Debug, Clone)]
 pub struct Interpreter {
-    data: Vec<i32>,
-    initial: Vec<i32>,
+    data: Vec<i64>,
+    initial: Vec<i64>,
     cursor: usize,
-    input_stream: Vec<i32>,
-    output_stream: Vec<i32>,
+    input_stream: Vec<i64>,
+    output_stream: Vec<i64>,
     debug: bool,
+    relative_base: i64,
 }
 
 impl Interpreter {
     /// Create intepreter from input text
     pub fn new(input_txt: &str) -> Self {
-        let data: Vec<i32> = input_txt.split(',').map(|x| x.parse().unwrap()).collect();
+        let data: Vec<i64> = input_txt.split(',').map(|x| x.parse().unwrap()).collect();
 
         Self {
             initial: data.clone(),
@@ -40,6 +41,7 @@ impl Interpreter {
             output_stream: vec![],
             input_stream: vec![],
             debug: false,
+            relative_base: 0,
         }
     }
 
@@ -49,12 +51,12 @@ impl Interpreter {
     }
 
     /// Push input value
-    pub fn push_input(&mut self, input: i32) {
+    pub fn push_input(&mut self, input: i64) {
         self.input_stream.push(input);
     }
 
     /// Pop input
-    pub fn pop_input(&mut self) -> Option<i32> {
+    pub fn pop_input(&mut self) -> Option<i64> {
         if self.input_stream.is_empty() {
             None
         } else {
@@ -63,12 +65,12 @@ impl Interpreter {
     }
 
     /// Push output value
-    pub fn push_output(&mut self, value: i32) {
+    pub fn push_output(&mut self, value: i64) {
         self.output_stream.push(value);
     }
 
     /// Pop output
-    pub fn pop_output(&mut self) -> Option<i32> {
+    pub fn pop_output(&mut self) -> Option<i64> {
         if self.output_stream.is_empty() {
             None
         } else {
@@ -79,6 +81,7 @@ impl Interpreter {
     /// Run and dump
     pub fn run_and_dump(input_txt: &str) -> String {
         let mut interpreter = Self::new(input_txt);
+        interpreter.set_debug_mode(true);
         interpreter.run();
         interpreter.dump()
     }
@@ -86,39 +89,83 @@ impl Interpreter {
     /// Run and dump with output
     pub fn run_and_dump_with_output(input_txt: &str) -> (String, String) {
         let mut interpreter = Self::new(input_txt);
-        let _ = interpreter.run();
+        interpreter.run();
 
         (interpreter.dump(), interpreter.dump_output())
     }
 
     /// Run with input/output
-    pub fn run_with_input_output(input_txt: &str, input: &[i32]) -> String {
+    pub fn run_with_input_output(input_txt: &str, input: &[i64]) -> String {
         let mut interpreter = Self::new(input_txt);
         for i in input {
             interpreter.push_input(*i);
         }
 
-        let _ = interpreter.run();
+        interpreter.run();
 
         interpreter.dump_output()
     }
 
+    /// Allocate memory
+    pub fn allocate_memory(&mut self, up_to: usize) {
+        let data_len = self.data.len();
+        if up_to < data_len {
+            panic!(
+                "Cannot allocate up to {}: current memory already is up to {}",
+                up_to, data_len
+            );
+        }
+
+        if self.debug {
+            println!("Allocating memory from {} to {} ...", data_len, up_to);
+        }
+
+        for _ in data_len..=up_to {
+            self.data.push(0);
+        }
+    }
+
     /// Get value at position
-    pub fn get_value(&self, position: usize) -> Option<i32> {
-        self.data.get(position).cloned()
+    pub fn get_value(&self, position: usize) -> i64 {
+        // If position does not exist in memory,
+        // return default memory: 0
+        if position >= self.data.len() {
+            0
+        } else {
+            self.data[position]
+        }
     }
 
     /// Set value at position
-    pub fn set_value(&mut self, position: usize, value: i32) {
+    pub fn set_value(&mut self, position: usize, value: i64) {
+        if position >= self.data.len() {
+            self.allocate_memory(position);
+        }
+
         self.data[position] = value;
     }
 
     /// Read register
-    pub fn read_register(&self, reg: Register) -> i32 {
+    pub fn read_register(&self, reg: Register) -> i64 {
         match reg.mode {
-            ParameterMode::Position => self.get_value(reg.value as usize).unwrap(),
+            ParameterMode::Position => self.get_value(reg.value as usize),
             ParameterMode::Immediate => reg.value,
+            ParameterMode::Relative => self.get_value((self.relative_base + reg.value) as usize),
         }
+    }
+
+    /// Read output register
+    pub fn read_output_register(&self, reg: Register) -> i64 {
+        match reg.mode {
+            ParameterMode::Position => reg.value,
+            ParameterMode::Immediate => reg.value,
+            ParameterMode::Relative => self.relative_base + reg.value,
+        }
+    }
+
+    /// Adjust relative base
+    pub fn adjust_relative_base(&mut self, offset: i64) {
+        self.relative_base += offset;
     }
 
     /// Increment cursor
@@ -137,7 +184,7 @@ impl Interpreter {
     }
 
     /// Set input values
-    pub fn set_input_values(&mut self, noun: i32, verb: i32) {
+    pub fn set_input_values(&mut self, noun: i64, verb: i64) {
         self.data[1] = noun;
         self.data[2] = verb;
     }
@@ -153,10 +200,11 @@ impl Interpreter {
         self.cursor = 0;
         self.input_stream.clear();
         self.output_stream.clear();
+        self.relative_base = 0;
     }
 
     /// Get stream at cursor
-    pub fn get_stream_at_cursor(&self) -> &[i32] {
+    pub fn get_stream_at_cursor(&self) -> &[i64] {
         &self.data[self.cursor as usize..]
     }
 
@@ -173,12 +221,12 @@ impl Interpreter {
     }
 
     /// Get input stream
-    pub fn get_input_stream(&self) -> &[i32] {
+    pub fn get_input_stream(&self) -> &[i64] {
         &self.input_stream
     }
 
     /// Get output stream
-    pub fn get_output_stream(&self) -> &[i32] {
+    pub fn get_output_stream(&self) -> &[i64] {
         &self.output_stream
     }
 
@@ -199,25 +247,27 @@ impl Interpreter {
         }
 
         match opcode {
-            OpCode::Add(r1, r2, a) => {
+            OpCode::Add(r1, r2, r3) => {
                 let v1 = self.read_register(r1);
                 let v2 = self.read_register(r2);
-                self.set_value(a.read(), v1 + v2);
+                let v3 = self.read_output_register(r3);
+                self.set_value(v3 as usize, v1 + v2);
                 self.advance_cursor(count);
             }
-            OpCode::Multiply(r1, r2, a) => {
+            OpCode::Multiply(r1, r2, r3) => {
                 let v1 = self.read_register(r1);
                 let v2 = self.read_register(r2);
-                self.set_value(a.read(), v1 * v2);
+                let v3 = self.read_output_register(r3);
+                self.set_value(v3 as usize, v1 * v2);
                 self.advance_cursor(count);
             }
-            OpCode::Store(a) => {
+            OpCode::Store(r) => {
                 if let Some(input) = self.pop_input() {
                     if self.debug {
                         println!("Getting input {}", input);
                     }
-                    let output = a.read();
-                    self.set_value(output, input);
+                    let output = self.read_output_register(r);
+                    self.set_value(output as usize, input);
                     self.advance_cursor(count);
                 } else {
                     if self.debug {
@@ -252,26 +302,31 @@ impl Interpreter {
                     self.advance_cursor(count);
                 }
             }
-            OpCode::LessThan(r1, r2, a) => {
+            OpCode::LessThan(r1, r2, r3) => {
                 let v1 = self.read_register(r1);
                 let v2 = self.read_register(r2);
-                let addr = a.read();
+                let v3 = self.read_output_register(r3);
                 if v1 < v2 {
-                    self.set_value(addr, 1);
+                    self.set_value(v3 as usize, 1);
                 } else {
-                    self.set_value(addr, 0);
+                    self.set_value(v3 as usize, 0);
                 }
                 self.advance_cursor(count);
             }
-            OpCode::Equals(r1, r2, a) => {
+            OpCode::Equals(r1, r2, r3) => {
                 let v1 = self.read_register(r1);
                 let v2 = self.read_register(r2);
-                let addr = a.read();
+                let v3 = self.read_output_register(r3);
                 if v1 == v2 {
-                    self.set_value(addr, 1);
+                    self.set_value(v3 as usize, 1);
                 } else {
-                    self.set_value(addr, 0);
+                    self.set_value(v3 as usize, 0);
                 }
+                self.advance_cursor(count);
+            }
+            OpCode::AdjustRelativeBase(r) => {
+                let v = self.read_register(r);
+                self.adjust_relative_base(v);
                 self.advance_cursor(count);
             }
             OpCode::Exit => {
@@ -440,6 +495,33 @@ mod tests {
         assert_eq!(
             Interpreter::run_with_input_output(full_code, &vec![9]),
             "1001".to_owned()
+        );
+    }
+
+    #[test]
+    fn test_relative() {
+        fn run_and_full_output(input_txt: &str) -> String {
+            let mut interp = Interpreter::new(input_txt);
+            interp.run();
+            interp.dump_output()
+        }
+
+        assert_eq!(
+            run_and_full_output("109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99"),
+            "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99".to_owned()
+        );
+
+        // Big number (16 digits)
+        assert_eq!(
+            run_and_full_output("1102,34915192,34915192,7,4,7,99,0")
+                .chars()
+                .count(),
+            16
+        );
+
+        assert_eq!(
+            run_and_full_output("104,1125899906842624,99"),
+            "1125899906842624".to_owned()
         );
     }
 }

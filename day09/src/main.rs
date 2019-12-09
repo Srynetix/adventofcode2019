@@ -2,14 +2,16 @@ use common::Interpreter;
 
 fn part1(input_txt: &str) -> i64 {
     let mut interpreter = Interpreter::new(input_txt);
+    // Test mode
     interpreter.push_input(1);
     interpreter.run();
-    interpreter.get_output_stream().last().copied().unwrap()
+    interpreter.pop_output().unwrap()
 }
 
 fn part2(input_txt: &str) -> i64 {
     let mut interpreter = Interpreter::new(input_txt);
-    interpreter.push_input(5);
+    // Boost mode
+    interpreter.push_input(2);
     interpreter.run();
     interpreter.pop_output().unwrap()
 }
@@ -33,7 +35,7 @@ mod tests {
     #[test]
     fn test_results() {
         let input_txt = include_str!("../input.txt");
-        assert_eq!(part1(&input_txt), 12428642);
-        assert_eq!(part2(&input_txt), 918655);
+        assert_eq!(part1(&input_txt), 3_765_554_916);
+        assert_eq!(part2(&input_txt), 76_642);
     }
 }
