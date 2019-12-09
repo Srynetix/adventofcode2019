@@ -1,13 +1,13 @@
 use common::Interpreter;
 
-fn part1(input_txt: &str) -> i32 {
+fn part1(input_txt: &str) -> i64 {
     let mut interpreter = Interpreter::new(input_txt);
     interpreter.push_input(1);
     interpreter.run();
     interpreter.get_output_stream().last().copied().unwrap()
 }
 
-fn part2(input_txt: &str) -> i32 {
+fn part2(input_txt: &str) -> i64 {
     let mut interpreter = Interpreter::new(input_txt);
     interpreter.push_input(5);
     interpreter.run();
