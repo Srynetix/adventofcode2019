@@ -42,6 +42,21 @@ impl AsteroidMap {
         }
     }
 
+    /// Compute angle in radians between (x1, y1) and (x2, y2)
+    pub fn compute_angle(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> f32 {
+        let x1 = x1 as f32;
+        let y1 = y1 as f32;
+        let x2 = x2 as f32;
+        let y2 = y2 as f32;
+
+        -(x1 - x2).atan2(y1 - y2) * 1000.0
+    }
+
+    /// Compute
+    pub fn compute_distance(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> usize {
+        return ((x1 as i32 - x2 as i32).abs() + (y1 as i32 - y2 as i32).abs()) as usize
+    }
+
     /// Scan asteroids at point
     pub fn scan_point(&self, x: usize, y: usize) -> usize {
         if self.get_char(x, y) == '.' {
@@ -52,14 +67,69 @@ impl AsteroidMap {
             .iter()
             .filter(|(ax, ay)| *ax != x || *ay != y)
             .map(|(ax, ay)| {
-                let x = x as f32;
-                let y = y as f32;
-                let ax = *ax as f32;
-                let ay = *ay as f32;
-                (-(x - ax).atan2(y - ay) * 1000.0) as i32
+                // Convert to str to use unique, to only count 1 asteroid
+                // for the same angle
+                self.compute_angle(x, y, *ax, *ay) as i32
             })
             .unique()
             .count()
+    }
+
+    pub fn sort_asteroids_from_point(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
+        if self.get_char(x, y) == '.' {
+            return vec![];
+        }
+
+        let mut sorted_asteroids: Vec<((usize, usize), i32, usize)> = self.asteroid_locations
+            .iter()
+            .filter(|(ax, ay)| *ax != x || *ay != y)
+            .map(|(ax, ay)| {
+                // Get angle
+                let mut angle = self.compute_angle(x, y, *ax, *ay) as i32;
+                angle = (angle + (5.0 * std::f32::consts::PI / 2.0 * 1000.0) as i32) % (2.0 * std::f32::consts::PI * 1000.0) as i32;
+                // Get distance
+                let distance = self.compute_distance(x, y, *ax, *ay);
+                // We need to sort by distance, then by angle
+                ((*ax, *ay), angle, distance)
+            })
+            .sorted_by(|(_, ang1, dist1), (_, ang2, dist2)| {
+                if ang1 == ang2 {
+                    Ord::cmp(dist1, dist2)
+                } else {
+                    Ord::cmp(ang1, ang2)
+                }
+            })
+            .collect();
+
+        println!("{} {}", x, y);
+        println!("{:?}", sorted_asteroids);
+
+        let mut destroyed = vec![];
+        loop {
+            let mut new_sorted_asteroids = vec![];
+            let mut prev_angle = i32::max_value();
+            for ((x, y), ang, dist) in &sorted_asteroids {
+                if prev_angle != *ang {
+                    println!("{}, Destroyed {} {}", destroyed.len() + 1, *x, *y);
+                    destroyed.push((*x, *y));
+                } else {
+                    new_sorted_asteroids.push(((*x, *y), *ang, *dist));
+                }
+
+                prev_angle = *ang;
+            }
+
+            if new_sorted_asteroids.is_empty() {
+                break;
+            }
+
+            sorted_asteroids = new_sorted_asteroids;
+        }
+
+
+        println!("{:?}", destroyed);
+
+        destroyed
     }
 
     pub fn better_position(&self) -> ((usize, usize), usize) {
@@ -120,8 +190,13 @@ fn part1(input_txt: &str) -> usize {
     count
 }
 
-fn part2(_input_txt: &str) -> usize {
-    0
+fn part2(input_txt: &str) -> usize {
+    let map = AsteroidMap::from_input(input_txt);
+    let ((x, y), _) = map.better_position();
+    let output = map.sort_asteroids_from_point(x, y);
+
+    let (ox, oy) = output[199];
+    ox * 100 + oy
 }
 
 fn main() {
