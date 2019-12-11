@@ -1,4 +1,6 @@
+use colored::Colorize;
 use itertools::Itertools;
+use std::{thread, time};
 
 #[derive(Debug, Clone)]
 pub struct AsteroidMap {
@@ -54,7 +56,7 @@ impl AsteroidMap {
 
     /// Compute
     pub fn compute_distance(&self, x1: usize, y1: usize, x2: usize, y2: usize) -> usize {
-        return ((x1 as i32 - x2 as i32).abs() + (y1 as i32 - y2 as i32).abs()) as usize
+        ((x1 as i32 - x2 as i32).abs() + (y1 as i32 - y2 as i32).abs()) as usize
     }
 
     /// Scan asteroids at point
@@ -75,24 +77,51 @@ impl AsteroidMap {
             .count()
     }
 
+    pub fn show_destruction(&self, bx: usize, by: usize, sorted: &[(usize, usize)]) {
+        let mut destroyed = vec![];
+
+        for (ax, ay) in sorted {
+            for y in 0..self.height {
+                for x in 0..self.width {
+                    if x == bx && y == by {
+                        print!("{}", "X".blue());
+                    } else if destroyed.contains(&(x, y)) {
+                        print!("{}", "@".magenta());
+                    } else {
+                        print!("{}", self.data[x + y * self.width]);
+                    }
+                }
+
+                println!();
+            }
+
+            thread::sleep(time::Duration::from_millis(100));
+            // Shakes a little but it does the job
+            print!("{}[2J", 27 as char);
+            destroyed.push((*ax, *ay));
+        }
+    }
+
     pub fn sort_asteroids_from_point(&self, x: usize, y: usize) -> Vec<(usize, usize)> {
         if self.get_char(x, y) == '.' {
             return vec![];
         }
 
-        let mut sorted_asteroids: Vec<((usize, usize), i32, usize)> = self.asteroid_locations
+        let mut sorted_asteroids: Vec<((usize, usize), i32, usize)> = self
+            .asteroid_locations
             .iter()
             .filter(|(ax, ay)| *ax != x || *ay != y)
             .map(|(ax, ay)| {
                 // Get angle
                 let mut angle = self.compute_angle(x, y, *ax, *ay) as i32;
-                angle = (angle + (5.0 * std::f32::consts::PI / 2.0 * 1000.0) as i32) % (2.0 * std::f32::consts::PI * 1000.0) as i32;
+                angle = (angle + (2.0 * std::f32::consts::PI * 1000.0) as i32)
+                    % (2.0 * std::f32::consts::PI * 1000.0) as i32;
                 // Get distance
                 let distance = self.compute_distance(x, y, *ax, *ay);
-                // We need to sort by distance, then by angle
                 ((*ax, *ay), angle, distance)
             })
             .sorted_by(|(_, ang1, dist1), (_, ang2, dist2)| {
+                // We need to sort by angle, then by distance
                 if ang1 == ang2 {
                     Ord::cmp(dist1, dist2)
                 } else {
@@ -101,16 +130,14 @@ impl AsteroidMap {
             })
             .collect();
 
-        println!("{} {}", x, y);
-        println!("{:?}", sorted_asteroids);
-
+        // Remove each asteroid if the angle is not the same as the previous
+        // one. As the distance are sorted, it should work fine.
         let mut destroyed = vec![];
         loop {
             let mut new_sorted_asteroids = vec![];
             let mut prev_angle = i32::max_value();
             for ((x, y), ang, dist) in &sorted_asteroids {
                 if prev_angle != *ang {
-                    println!("{}, Destroyed {} {}", destroyed.len() + 1, *x, *y);
                     destroyed.push((*x, *y));
                 } else {
                     new_sorted_asteroids.push(((*x, *y), *ang, *dist));
@@ -125,9 +152,6 @@ impl AsteroidMap {
 
             sorted_asteroids = new_sorted_asteroids;
         }
-
-
-        println!("{:?}", destroyed);
 
         destroyed
     }
@@ -194,6 +218,9 @@ fn part2(input_txt: &str) -> usize {
     let map = AsteroidMap::from_input(input_txt);
     let ((x, y), _) = map.better_position();
     let output = map.sort_asteroids_from_point(x, y);
+
+    // Uncomment to show destruction in ASCII
+    // map.show_destruction(x, y, &output);
 
     let (ox, oy) = output[199];
     ox * 100 + oy
@@ -330,6 +357,6 @@ mod tests {
     fn test_results() {
         let input_txt = include_str!("../input.txt");
         assert_eq!(part1(&input_txt), 329);
-        // assert_eq!(part2(&input_txt), 76_642);
+        assert_eq!(part2(&input_txt), 512);
     }
 }
