@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use aocutils::float_eq;
+use common::float_eq;
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct Point {
