@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use num::integer::Integer;
 
 pub type Vector3D = euclid::default::Vector3D<i32>;
 
@@ -99,6 +100,76 @@ impl MoonSim {
         }
     }
 
+    pub fn get_x_positions(&self) -> Vec<i32> {
+        self.moons.iter().map(|m| m.position.x).collect()
+    }
+
+    pub fn get_y_positions(&self) -> Vec<i32> {
+        self.moons.iter().map(|m| m.position.y).collect()
+    }
+
+    pub fn get_z_positions(&self) -> Vec<i32> {
+        self.moons.iter().map(|m| m.position.z).collect()
+    }
+
+    pub fn get_x_velocities(&self) -> Vec<i32> {
+        self.moons.iter().map(|m| m.velocity.x).collect()
+    }
+
+    pub fn get_y_velocities(&self) -> Vec<i32> {
+        self.moons.iter().map(|m| m.velocity.y).collect()
+    }
+
+    pub fn get_z_velocities(&self) -> Vec<i32> {
+        self.moons.iter().map(|m| m.velocity.z).collect()
+    }
+
+    /// Find repeating cycles on independent coordinates,
+    /// then compute LCM between the 3
+    pub fn find_cycle(&mut self) -> u64 {
+        let init_pos_x: Vec<i32> = self.moons.iter().map(|m| m.position.x).collect();
+        let init_pos_y: Vec<i32> = self.moons.iter().map(|m| m.position.y).collect();
+        let init_pos_z: Vec<i32> = self.moons.iter().map(|m| m.position.z).collect();
+        let init_vel = vec![0, 0, 0, 0];
+
+        let mut repeat_x: u64 = 0;
+        let mut repeat_y: u64 = 0;
+        let mut repeat_z: u64 = 0;
+
+        let mut counter = 0;
+        loop {
+            self.step();
+            counter += 1;
+
+            if repeat_x == 0
+                && init_pos_x == self.get_x_positions()
+                && init_vel == self.get_x_velocities()
+            {
+                repeat_x = counter;
+            }
+
+            if repeat_y == 0
+                && init_pos_y == self.get_y_positions()
+                && init_vel == self.get_y_velocities()
+            {
+                repeat_y = counter;
+            }
+
+            if repeat_z == 0
+                && init_pos_z == self.get_z_positions()
+                && init_vel == self.get_z_velocities()
+            {
+                repeat_z = counter;
+            }
+
+            if repeat_x != 0 && repeat_y != 0 && repeat_z != 0 {
+                break;
+            }
+        }
+
+        repeat_x.lcm(&repeat_y).lcm(&repeat_z)
+    }
+
     pub fn compute_total_energy(&self) -> usize {
         self.moons.iter().map(|x| x.compute_total_energy()).sum()
     }
@@ -110,8 +181,9 @@ fn part1(input_txt: &str) -> usize {
     sim.compute_total_energy()
 }
 
-fn part2(_input_txt: &str) -> usize {
-    0
+fn part2(input_txt: &str) -> u64 {
+    let mut sim = MoonSim::from_input(input_txt);
+    sim.find_cycle()
 }
 
 fn main() {
@@ -135,6 +207,13 @@ mod tests {
          <x=2, y=-10, z=-7>\n\
          <x=4, y=-8, z=8>\n\
          <x=3, y=5, z=-1>"
+    }
+
+    fn example2() -> &'static str {
+        "<x=-8, y=-10, z=0>\n\
+         <x=5, y=5, z=10>\n\
+         <x=2, y=-7, z=3>\n\
+         <x=9, y=-8, z=-3>"
     }
 
     fn assert_expr(moon: &Moon, px: i32, py: i32, pz: i32, vx: i32, vy: i32, vz: i32) {
@@ -178,9 +257,18 @@ mod tests {
     }
 
     #[test]
+    fn test_cycles() {
+        let mut sim = MoonSim::from_input(example1());
+        assert_eq!(sim.find_cycle(), 2_772);
+
+        let mut sim = MoonSim::from_input(example2());
+        assert_eq!(sim.find_cycle(), 4_686_774_924);
+    }
+
+    #[test]
     fn test_results() {
         let input_txt = include_str!("../input.txt");
         assert_eq!(part1(&input_txt), 8_960);
-        // assert_eq!(part2(&input_txt), 0);
+        assert_eq!(part2(&input_txt), 314_917_503_970_904);
     }
 }

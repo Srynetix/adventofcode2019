@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 euclid = "0.20.6"
 itertools = "0.8.2"
+num = "0.2.0"
