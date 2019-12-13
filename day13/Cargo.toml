@@ -1,6 +1,6 @@
 [package]
 name = "day13"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Denis Bourge <denis.bourge@sharingcloud.com>"]
 edition = "2018"
 
@@ -8,5 +8,6 @@ edition = "2018"
 
 [dependencies]
 euclid = "0.20.6"
-itertools = "0.8.2"
 common = { path = "../common" }
+colored = "1.9"
+crossterm = "0.14.0"

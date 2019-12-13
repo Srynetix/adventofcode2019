@@ -69,6 +69,11 @@ impl Interpreter {
         self.output_stream.push(value);
     }
 
+    /// Set output values
+    pub fn set_output_values(&mut self, values: Vec<i64>) {
+        self.output_stream = values;
+    }
+
     /// Pop output
     pub fn pop_output(&mut self) -> Option<i64> {
         if self.output_stream.is_empty() {
@@ -218,6 +223,11 @@ impl Interpreter {
     pub fn dump_output(&self) -> String {
         let str_dump: Vec<String> = self.output_stream.iter().map(|x| x.to_string()).collect();
         str_dump.join(",")
+    }
+
+    // Clear output
+    pub fn clear_output(&mut self) {
+        self.output_stream.clear();
     }
 
     /// Get input stream
