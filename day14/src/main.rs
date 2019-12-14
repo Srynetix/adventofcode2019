@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chemical {
-    value: i32,
+    value: i64,
     name: String,
 }
 
 impl Chemical {
-    pub fn new(value: i32, name: &str) -> Self {
+    pub fn new(value: i64, name: &str) -> Self {
         Self {
             value,
             name: name.to_owned(),
@@ -22,7 +22,7 @@ impl Chemical {
         let entry: Vec<&str> = input.split(' ').collect();
         let value = entry
             .get(0)
-            .and_then(|x| x.parse::<i32>().ok())
+            .and_then(|x| x.parse::<i64>().ok())
             .unwrap_or_else(|| panic!("invalid chemical value {:?}", entry));
         let name = entry
             .get(1)
@@ -80,11 +80,19 @@ impl Simulation {
         self.find_reaction_for("FUEL")
     }
 
-    pub fn calculate_fuel(&self) -> i32 {
+    pub fn calculate_single_fuel(&self) -> i64 {
+        let mut map = HashMap::new();
+        self.calculate_fuel_quantity(1, &mut map)
+    }
+
+    pub fn calculate_fuel_quantity(
+        &self,
+        fuel_quantity: i64,
+        remaining: &mut HashMap<String, i64>,
+    ) -> i64 {
         let mut needed = Vec::new();
-        let mut remaining = HashMap::new();
         let mut ore = 0;
-        needed.push(("FUEL".to_owned(), 1));
+        needed.push(("FUEL".to_owned(), fuel_quantity));
 
         while !needed.is_empty() {
             let (needed_name, mut needed_quantity) = needed.remove(0);
@@ -122,14 +130,41 @@ impl Simulation {
 
         ore
     }
+
+    fn calculate_fuel_from_ore(&self, base_ore: i64) -> i64 {
+        let mut remaining = HashMap::new();
+        let ore_per_fuel = self.calculate_fuel_quantity(1, &mut remaining);
+        let mut total_fuel = 1;
+
+        // Reinject ore in remaining
+        remaining.insert("ORE".to_owned(), base_ore - ore_per_fuel);
+
+        loop {
+            // Prepare amount
+            let mut fuel_amount = remaining["ORE"] / ore_per_fuel;
+            if fuel_amount == 0 {
+                fuel_amount = 1;
+            }
+
+            let ore = self.calculate_fuel_quantity(fuel_amount, &mut remaining);
+            // Remaining ore? Done.
+            if ore > 0 {
+                break;
+            }
+
+            total_fuel += fuel_amount;
+        }
+
+        total_fuel
+    }
 }
 
-fn part1(input_txt: &str) -> i32 {
-    Simulation::from_input(input_txt).calculate_fuel()
+fn part1(input_txt: &str) -> i64 {
+    Simulation::from_input(input_txt).calculate_single_fuel()
 }
 
-fn part2(input_txt: &str) -> i32 {
-    0
+fn part2(input_txt: &str) -> i64 {
+    Simulation::from_input(input_txt).calculate_fuel_from_ore(1_000_000_000_000)
 }
 
 fn main() {
@@ -237,21 +272,53 @@ mod tests {
 
     #[test]
     fn test_resolution_small() {
-        assert_eq!(Simulation::from_input(example1()).calculate_fuel(), 31);
-        assert_eq!(Simulation::from_input(example2()).calculate_fuel(), 165);
+        assert_eq!(
+            Simulation::from_input(example1()).calculate_single_fuel(),
+            31
+        );
+        assert_eq!(
+            Simulation::from_input(example2()).calculate_single_fuel(),
+            165
+        );
     }
 
     #[test]
     fn test_resolution_large() {
-        assert_eq!(Simulation::from_input(example3()).calculate_fuel(), 13312);
-        assert_eq!(Simulation::from_input(example4()).calculate_fuel(), 180697);
-        assert_eq!(Simulation::from_input(example5()).calculate_fuel(), 2210736);
+        assert_eq!(
+            Simulation::from_input(example3()).calculate_single_fuel(),
+            13_312
+        );
+        assert_eq!(
+            Simulation::from_input(example4()).calculate_single_fuel(),
+            180_697
+        );
+        assert_eq!(
+            Simulation::from_input(example5()).calculate_single_fuel(),
+            2_210_736
+        );
+    }
+
+    #[test]
+    fn test_fuel_with_small() {
+        let amount = 1_000_000_000_000;
+        assert_eq!(
+            Simulation::from_input(example3()).calculate_fuel_from_ore(amount),
+            82_892_753
+        );
+        assert_eq!(
+            Simulation::from_input(example4()).calculate_fuel_from_ore(amount),
+            5_586_022
+        );
+        assert_eq!(
+            Simulation::from_input(example5()).calculate_fuel_from_ore(amount),
+            460_664
+        );
     }
 
     #[test]
     fn test_results() {
         let input_txt = include_str!("../input.txt");
         assert_eq!(part1(&input_txt), 443_537);
-        // assert_eq!(part2(&input_txt), 0);
+        assert_eq!(part2(&input_txt), 2_910_558);
     }
 }
