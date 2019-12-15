@@ -63,7 +63,7 @@ impl Direction {
     }
 
     pub fn list() -> Vec<Self> {
-        vec![Self::North, Self::East, Self::South, Self::West]
+        vec![Self::East, Self::West, Self::North, Self::South]
     }
 
     pub fn to_offset(self) -> Vector2D {
@@ -150,31 +150,48 @@ impl Simulation {
             screen.push('\n');
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(std::time::Duration::from_millis(50));
         // Shakes a little but it does the job
         print!("{}[2J", 27 as char);
         println!("{}", screen);
     }
 
-    pub fn run(&mut self, debug: bool) -> Vec<Direction> {
+    pub fn run(
+        &mut self,
+        stop_at_oxygen: bool,
+        debug: bool,
+    ) -> (Vec<Direction>, HashMap<Vector2D, Tile>) {
         let mut path = vec![];
+        let mut oxygen_path = vec![];
         let mut to_visit = vec![];
         let mut visited = HashSet::new();
         let mut tiles = HashMap::new();
         let mut interpreter = Interpreter::new(&self.code);
         let mut position = Vector2D::new(0, 0);
+        let mut backtrack: Option<Direction> = None;
 
         // Initial position
         visited.insert(position.clone());
-        to_visit.push(Direction::West);
+        to_visit.push(Direction::North);
         tiles.insert(position.clone(), Tile::Empty);
 
         'simulation: loop {
             // Let's go !
-            let direction = to_visit.pop().expect("no more tile to visit");
+            let direction = if let Some(mvmt) = backtrack {
+                mvmt.invert()
+            } else if let Some(mvmt) = to_visit.pop() {
+                mvmt
+            } else {
+                break 'simulation;
+            };
 
             // Move!
-            path.push(direction);
+            if backtrack.is_none() {
+                path.push(direction);
+            } else {
+                backtrack = None;
+            }
+
             position += direction.to_offset();
             visited.insert(position);
             interpreter.push_input(direction.to_code());
@@ -208,41 +225,38 @@ impl Simulation {
             match output_tile {
                 Tile::Wall => {
                     // Cannot pass, move back!
-                    let inverted_direction = direction.invert();
-                    path.pop().unwrap();
-                    position += inverted_direction.to_offset();
+                    let dir = path.pop().unwrap();
+                    position += dir.invert().to_offset();
                 }
                 Tile::Oxygen => {
                     // Ok!
-                    println!("Oxygen found");
-                    break;
+                    oxygen_path = path.clone();
+                    if stop_at_oxygen {
+                        println!("Oxygen found");
+                        break;
+                    }
                 }
                 _ => (),
             }
 
-            // Find another direction
-            'mvmt: loop {
-                // Check for other movements
-                for dir in Direction::list() {
-                    let tgt = position + dir.to_offset();
-                    if !visited.contains(&tgt) {
-                        to_visit.push(dir);
-                        break 'mvmt;
-                    }
+            // Check for other movements
+            for dir in Direction::list() {
+                let tgt = position + dir.to_offset();
+                if !visited.contains(&tgt) {
+                    to_visit.push(dir);
+                    break;
                 }
+            }
 
-                let prev = path.pop().unwrap();
-                position += prev.invert().to_offset();
-                // Show map
-                if debug {
-                    self.show_map(&tiles, position);
-                }
+            if to_visit.is_empty() {
+                // Go back
+                backtrack = path.pop();
             }
         }
 
         let mut path_pos = Vector2D::new(0, 0);
         // Compute path
-        for p in &path {
+        for p in &oxygen_path {
             tiles.insert(path_pos.clone(), Tile::Way);
             path_pos += p.to_offset();
         }
@@ -250,17 +264,21 @@ impl Simulation {
         tiles.insert(Vector2D::new(0, 0), Tile::Oxygen);
 
         self.show_map(&tiles, position);
-        path
+        (oxygen_path, tiles)
     }
 }
 
 fn part1(input_txt: &str) -> usize {
     let mut sim = Simulation::from_input(input_txt);
-    let path = sim.run(false);
+    let (path, _) = sim.run(true, false);
     path.len()
 }
 
-fn part2(_input_txt: &str) -> i32 {
+fn part2(input_txt: &str) -> usize {
+    let mut sim = Simulation::from_input(input_txt);
+    let (path, tiles) = sim.run(false, false);
+
+    //
     0
 }
 
