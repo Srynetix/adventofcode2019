@@ -254,17 +254,56 @@ impl Simulation {
             }
         }
 
+        let mut show_map_tiles = tiles.clone();
         let mut path_pos = Vector2D::new(0, 0);
         // Compute path
         for p in &oxygen_path {
-            tiles.insert(path_pos.clone(), Tile::Way);
+            show_map_tiles.insert(path_pos.clone(), Tile::Way);
             path_pos += p.to_offset();
         }
 
-        tiles.insert(Vector2D::new(0, 0), Tile::Oxygen);
+        show_map_tiles.insert(Vector2D::new(0, 0), Tile::Oxygen);
+        self.show_map(&show_map_tiles, position);
 
-        self.show_map(&tiles, position);
         (oxygen_path, tiles)
+    }
+
+    pub fn fill_oxygen(&self, tiles: &mut HashMap<Vector2D, Tile>) -> usize {
+        let mut oxygen_points: Vec<Vector2D> = vec![];
+        let mut remaining_tiles: Vec<Vector2D> = vec![];
+
+        for (pos, tile) in tiles.iter() {
+            if *tile == Tile::Oxygen {
+                oxygen_points.push(pos.clone());
+            } else if *tile == Tile::Empty {
+                remaining_tiles.push(pos.clone());
+            }
+        }
+
+        let mut time = 0;
+        while !remaining_tiles.is_empty() {
+            let mut next_oxygen_points = vec![];
+            while !oxygen_points.is_empty() {
+                let point = oxygen_points.remove(0);
+                for dir in Direction::list() {
+                    let tgt = point + dir.to_offset();
+                    if *tiles.get(&tgt).expect("tile should exist") == Tile::Empty {
+                        // Remove remaining tile
+                        tiles.insert(tgt, Tile::Oxygen);
+                        next_oxygen_points.push(tgt.clone());
+
+                        if let Some(x) = remaining_tiles.iter().position(|&x| x == tgt) {
+                            remaining_tiles.remove(x);
+                        }
+                    }
+                }
+            }
+
+            oxygen_points = next_oxygen_points;
+            time += 1;
+        }
+
+        time
     }
 }
 
@@ -276,10 +315,8 @@ fn part1(input_txt: &str) -> usize {
 
 fn part2(input_txt: &str) -> usize {
     let mut sim = Simulation::from_input(input_txt);
-    let (path, tiles) = sim.run(false, false);
-
-    //
-    0
+    let (_, mut tiles) = sim.run(false, false);
+    sim.fill_oxygen(&mut tiles)
 }
 
 fn main() {
@@ -302,6 +339,6 @@ mod tests {
     fn test_results() {
         let input_txt = include_str!("../input.txt");
         assert_eq!(part1(&input_txt), 224);
-        // assert_eq!(part2(&input_txt), 2_910_558);
+        assert_eq!(part2(&input_txt), 284);
     }
 }
